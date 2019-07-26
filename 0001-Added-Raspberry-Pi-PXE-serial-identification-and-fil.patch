@@ -1,0 +1,64 @@
+From b975f901b9b96d1367ea3c54c85dc26a36d72ec9 Mon Sep 17 00:00:00 2001
+From: Alan Zhang <alan@lucar.io>
+Date: Tue, 31 Jul 2018 15:22:01 -0400
+Subject: [PATCH] Added Raspberry Pi PXE serial identification and file path
+ rewriting code
+
+---
+ src/tftp.c | 40 ++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 40 insertions(+)
+
+diff --git a/src/tftp.c b/src/tftp.c
+index bccca69..509017d 100644
+--- a/src/tftp.c
++++ b/src/tftp.c
+@@ -439,6 +439,46 @@ void tftp_request(struct listener *listen, time_t now)
+ 	}
+       else if (filename[0] == '/')
+ 	daemon->namebuff[0] = 0;
++
++	  //Translate Raspberry Pi serials - Alan Zhang hack
++	  const char * validchars = "0123456789abcdef";
++	  if (filename[0] != '/') {
++		  char * c = filename;
++		  int i;
++		  int ispiser = 1;
++		  for (i = 0; i<8; i++) {
++			  if (strchr(validchars, *c) == NULL) {
++				  ispiser = 0;
++				  break;
++			  }
++			  c++;
++		  }
++		  if (*c != '/') ispiser = 0;
++		  if (ispiser) {
++			  //Is Pi serial, build MAC
++			  //my_syslog(LOG_INFO, _("IS PI SERIAL"));
++			  char macstring[19] = { 'b', '8', '-', '2', '7', '-', 'e', 'b', '-' };
++			  macstring[9] = filename[2];
++			  macstring[10] = filename[3];
++			  macstring[11] = '-';
++			  macstring[12] = filename[4];
++			  macstring[13] = filename[5];
++			  macstring[14] = '-';
++			  macstring[15] = filename[6];
++			  macstring[16] = filename[7];
++			  macstring[17] = '/';
++			  macstring[18] = '\0';
++			  //Skip serial in output filename
++			  filename += 9;
++			  //Add MAC to output filename
++			  strncat(daemon->namebuff, macstring, (MAXDNAME - 1) - strlen(daemon->namebuff));
++		  }
++		  else {
++			  //Not Pi serial, do nothing
++			  my_syslog(LOG_INFO, _("NOT PI SERIAL"));
++		  }
++	  }
++
+       strncat(daemon->namebuff, filename, (MAXDNAME-1) - strlen(daemon->namebuff));
+       
+       /* check permissions and open file */
+-- 
+2.17.1
+
